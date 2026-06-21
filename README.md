@@ -6,7 +6,7 @@ Modern enterprise applications generate gigabytes of log data every single day (
 2.	The operating system freezes, databases corrupt, and the entire business goes offline.
 3.	Troubleshooting becomes impossible because a single log file grows to $10\text{ Gigabytes}$, making it impossible to open or search.
 
-OUR SOLUTION 
+# OUR SOLUTION:
 We are going to build a micro-ecosystem containing three distinct parts:
 1.	The Generator: A custom-engineered mock application script that simulates a busy corporate app, aggressively appending timestamps and system actions to a live file called app.log.
 2.	The Rotator Daemon: A professional Linux logrotate configuration layout that watches this log file, slices it up automatically when it hits a threshold, compresses old logs into .gz files to save space, and maintains a strict historical archive limit.
@@ -18,7 +18,6 @@ In a real enterprise environment (like Netflix, Amazon, or a local bank), this e
 •	Keep Apps Online: It guarantees that automated log growth will never crash the core application.
 •	Maintain Legal Compliance: Many industries are legally required to keep user logs for 90 days. This architecture preserves historical logs with precise date stamps while purging anything older than the retention policy.
 
-
 A professional Linux system automation project that simulates heavy enterprise application traffic, manages log lifecycles safely using native system daemons (`logrotate`), and deploys an automated background sensor (`vanguard`) to protect the server from low-disk space crashes.
 
 ## Executive Summary (Project at a Glance)
@@ -29,7 +28,6 @@ A professional Linux system automation project that simulates heavy enterprise a
 
 **System Architecture Layout**
    
-   text
  [ 🔄 App Generator Script ] ──> Streams Live Data ──> [ 📄 logs/app.log ]
                                                                │
  [ 🧹 Autonomous Guard Script ] ── Low Disk Trigger? ───────► │ (Forces Rotation)
