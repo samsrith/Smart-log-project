@@ -1,31 +1,36 @@
 #!/bin/bash
+set -euo pipefail
 
-# Ensure our target log directory exists
-mkdir -p logs
-LOGFILE="logs/app.log"
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+LOG_FILE=${LOG_FILE:-"${SCRIPT_DIR}/logs/app.log"}
+LOG_INTERVAL=${LOG_INTERVAL:-0.2}
 
-echo "[INFO] $(date '+%Y-%m-%d %H:%M:%S') - Starting Enterprise App Service..." >> "$LOGFILE"
+mkdir -p "$(dirname -- "${LOG_FILE}")"
 
-# Infinite loop to simulate aggressive background transaction logging
-while true
-do
-    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
-    
-    # Bulletproof random simulator using standard seconds ($SECONDS counts shell uptime!)
-    USER_ID=$(( (SECONDS * 7) % 1000 + 1000 ))
-    TXN_ID=$(( (SECONDS * 13) % 90000 + 10000 ))
-    CENTS=$(( (SECONDS * 3) % 90 + 10 ))
-    
-    # Write dynamic events to log
-    echo "[INFO] $TIMESTAMP - USER_LOGIN - User ID: $USER_ID successfully authenticated." >> "$LOGFILE"
-    echo "[SUCCESS] $TIMESTAMP - PAYMENT_API - Transaction ID: TXN$TXN_ID processed successfully. Amount: \$12.$CENTS" >> "$LOGFILE"
-    
-    # Simulating random error blocks using math cycles
-    RAND_CHECK=$(( SECONDS % 5 ))
-    if [ $RAND_CHECK -eq 0 ]; then
-        echo "[WARNING] $TIMESTAMP - DB_CONNECTION - Latency spikes detected on database cluster master." >> "$LOGFILE"
-    fi
+shutdown() {
+  printf '\n[INFO] Generator stopped. Log file: %s\n' "${LOG_FILE}"
+}
+trap shutdown EXIT
+trap 'exit 0' INT TERM
 
-    # Rest for a split second to simulate rapid traffic flow
-    sleep 0.2
+printf '[INFO] %s - Starting sample application service.\n' \
+  "$(date '+%Y-%m-%d %H:%M:%S')" >> "${LOG_FILE}"
+
+while true; do
+  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  user_id=$((RANDOM % 9000 + 1000))
+  transaction_id=$((RANDOM % 90000 + 10000))
+  cents=$((RANDOM % 90 + 10))
+
+  printf '[INFO] %s - USER_LOGIN - User ID %s authenticated.\n' \
+    "${timestamp}" "${user_id}" >> "${LOG_FILE}"
+  printf '[SUCCESS] %s - PAYMENT_API - Transaction TXN%s processed. Amount: $12.%s\n' \
+    "${timestamp}" "${transaction_id}" "${cents}" >> "${LOG_FILE}"
+
+  if (( RANDOM % 5 == 0 )); then
+    printf '[WARNING] %s - DB_CONNECTION - Simulated latency spike detected.\n' \
+      "${timestamp}" >> "${LOG_FILE}"
+  fi
+
+  sleep "${LOG_INTERVAL}"
 done
