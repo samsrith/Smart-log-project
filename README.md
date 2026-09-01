@@ -1,67 +1,113 @@
-Title: SMART APP LOG ARCHITECT ROTATOR
+# Smart Application Log Rotator and Disk Guard
 
-PROBLEM
-Modern enterprise applications generate gigabytes of log data every single day (e.g., tracking user logins, payment transactions, system errors). If left unmanaged:
-1.	The server's hard drive hits 100% capacity (Use% in df -h).
-2.	The operating system freezes, databases corrupt, and the entire business goes offline.
-3.	Troubleshooting becomes impossible because a single log file grows to $10\text{ Gigabytes}$, making it impossible to open or search.
+A Linux operations portfolio project that demonstrates application-log generation, size-based rotation, gzip compression, retention, and a disk-usage-triggered emergency rotation workflow.
 
-# OUR SOLUTION:
-We are going to build a micro-ecosystem containing three distinct parts:
-1.	The Generator: A custom-engineered mock application script that simulates a busy corporate app, aggressively appending timestamps and system actions to a live file called app.log.
-2.	The Rotator Daemon: A professional Linux logrotate configuration layout that watches this log file, slices it up automatically when it hits a threshold, compresses old logs into .gz files to save space, and maintains a strict historical archive limit.
-3.	The Emergency Remediation Daemon: An automated bash script that monitors disk health and forces immediate emergency log purging if the host system enters a low-space crunch state.
+This is a local lab project designed to practise Bash, `df`, `awk`, `logrotate`, process control, and operational troubleshooting. It is not a replacement for centralized production logging or monitoring.
 
-Real-Time Production Usage (The Corporate Value)
-In a real enterprise environment (like Netflix, Amazon, or a local bank), this exact architecture is used to:
-•	Save Thousands in Cloud Storage Costs: Compressing text logs using .gz reduces file size by up to $90\%$, allowing companies to retain records longer on smaller, cheaper hard drives.
-•	Keep Apps Online: It guarantees that automated log growth will never crash the core application.
-•	Maintain Legal Compliance: Many industries are legally required to keep user logs for 90 days. This architecture preserves historical logs with precise date stamps while purging anything older than the retention policy.
+## Problem
 
-A professional Linux system automation project that simulates heavy enterprise application traffic, manages log lifecycles safely using native system daemons (`logrotate`), and deploys an automated background sensor (`vanguard`) to protect the server from low-disk space crashes.
+Application logs grow continuously. Without rotation and retention controls, they can consume disk space, make troubleshooting slower, and eventually affect application availability.
 
-## Executive Summary (Project at a Glance)
+## Components
 
-* **What is this?** A 3-part automation ecosystem that generates, shrinks, archives, and cleans up software files automatically.
-* **Why use it?** Running out of disk space is a leading cause of production server crashes. This project saves companies thousands in cloud storage costs and keeps servers online 24/7/365.
-* **Where is this used?** Every major cloud infrastructure platform (AWS, Azure, Google Cloud) uses this exact layout to manage microservices, web servers, and database logging.
+| File | Purpose |
+|---|---|
+| `app_generator.sh` | Generates timestamped sample login, payment, and warning events |
+| `app_logrotate.conf` | Portable logrotate template for compression and retention |
+| `app_guard.sh` | Checks root-filesystem usage and forces rotation at a configured threshold |
 
-**System Architecture Layout**
-   
- [ 🔄 App Generator Script ] ──> Streams Live Data ──> [ 📄 logs/app.log ]
-                                                               │
- [ 🧹 Autonomous Guard Script ] ── Low Disk Trigger? ───────► │ (Forces Rotation)
-                                                               ▼
- [ ⚙️ Logrotate Config Daemon ] ──► Slices, Dates, and Packs ──► [ 📦 app.log.1.gz ]
+## Requirements
 
+- Linux or WSL
+- Bash
+- `logrotate`
+- `awk`, `df`, `mktemp`, and standard GNU utilities
+- `sudo` permission when logrotate requires elevated access
 
-# 1. The Application Simulator (app_generator.sh)
- This background worker simulates active client traffic (logins, payments, database spikes) streaming data into a file called app.log.
+On Debian or Ubuntu:
 
- The Command: bash app_generator.sh &
+```bash
+sudo apt update
+sudo apt install -y logrotate
+```
 
-# 2. logrotate assistant (app_logrotate.conf)
- This configuration file instructs the operating system's built-in cleanup guard how to shred, compress, and discard old data.
+On Amazon Linux, Fedora, or RHEL:
 
- Plaintext
- /home/sam/smart-log-project/logs/app.log {
-     size 10k
-     rotate 3
-     compress
-     copytruncate
- } 
+```bash
+sudo dnf install -y logrotate
+```
 
-# 3. The Emergency Guard Monitor (app_guard.sh)
- This script acts like a safety sensor inside the system, continuously verifying the health of the host machine.
+## Run the log generator
 
- The Command: ./app_guard.sh
+```bash
+chmod +x app_generator.sh app_guard.sh
+./app_generator.sh
+```
 
+The script creates `logs/app.log` relative to the repository directory. Stop it with `Ctrl+C`.
 
-  ## The STORY Overview: "The Pizza Box Factory Panic"
-Imagine you run the busiest pizza delivery kitchen in New York City. Every time a customer places an order, your head chef writes a receipt and throws it onto the kitchen floor to keep a record.
-Plaintext
- [Every Order] ──> 📄 Chef throws receipt on floor ──> ⚠️ Floor fills up ──> 🛑 Kitchen Crashes!
-•	The Crisis: Within three days, the pile of receipts is up to the ceiling! The chefs can't move, they can't access the ovens, and the restaurant has to shut down because there is no physical space left to walk. This is a server crashing from unmanaged logs.
-•	The Logrotate Solution: You hire an assistant (our logrotate system). Every single night at midnight, the assistant walks into the kitchen, scoops up all the day's receipts, bundles them tightly with a rubber band (compression), marks the bundle with today's date (timestamping), and puts it into a storage cabinet in the back.
-•	The Policy: The storage cabinet only holds 5 shelves. When day 6 arrives, the assistant takes the oldest bundle from shelf 5 and throws it into the recycling bin (purging). The kitchen floor stays completely clean, the restaurant never runs out of space, and if you ever need to check an old order from 3 days ago, you know exactly which shelf to look on!
+To generate events more quickly or slowly:
 
+```bash
+LOG_INTERVAL=0.1 ./app_generator.sh
+```
+
+## Check the guard safely
+
+The default disk threshold is 90%. A dry run shows what would happen without calling `sudo logrotate`:
+
+```bash
+DISK_THRESHOLD=0 DRY_RUN=1 ./app_guard.sh
+```
+
+## Force a real rotation test
+
+First generate enough log data, then run:
+
+```bash
+DISK_THRESHOLD=0 ./app_guard.sh
+```
+
+The guard renders the checked-in template with the repository's absolute log path before calling `logrotate`. After rotation, inspect the results:
+
+```bash
+ls -lh logs/
+gzip -l logs/*.gz
+```
+
+Expected files may include:
+
+```text
+app.log
+app.log.1.gz
+app.log.2.gz
+app.log.3.gz
+```
+
+## Configuration
+
+The template rotates the log when it reaches 10 KiB, retains three archives, compresses older files, ignores missing or empty logs, and uses `copytruncate` so the generator can continue writing without being restarted.
+
+Environment variables supported by the scripts:
+
+| Variable | Default | Description |
+|---|---:|---|
+| `LOG_INTERVAL` | `0.2` | Seconds between generated event batches |
+| `DISK_THRESHOLD` | `90` | Root-filesystem percentage that triggers rotation |
+| `DRY_RUN` | `0` | Set to `1` to show the action without running logrotate |
+| `LOG_FILE` | `logs/app.log` | Optional absolute or relative log-file override |
+
+## Operational limitations
+
+- The project monitors only the root filesystem.
+- `copytruncate` can theoretically lose a small number of log lines during rotation.
+- The guard is run manually; production scheduling would use a systemd timer, cron, or monitoring system.
+- Production systems normally ship logs to centralized platforms and add alerting, access control, and backup policies.
+
+## What I learned
+
+- How `df -P` output can be parsed safely for an automation threshold.
+- How logrotate applies size, retention, compression, and missing-file policies.
+- Why application and rotation paths must remain consistent.
+- How to make Bash scripts independent of a specific username or home directory.
+- How a dry-run mode makes operational automation safer to test.
